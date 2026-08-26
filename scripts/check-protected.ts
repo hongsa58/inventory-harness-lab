@@ -18,11 +18,9 @@ export function parseProtectedPaths(document: string): string[] {
   const start = document.indexOf(markerStart)
   const end = document.indexOf(markerEnd, start + markerStart.length)
   if (start < 0 || end < 0) throw new Error('SSOT protected-path registry is missing')
-
   const block = document.slice(start + markerStart.length, end)
   const listStart = block.indexOf('검사 대상 보호 경로:')
   if (listStart < 0) throw new Error('SSOT protected-path list is missing')
-
   return block
     .slice(listStart)
     .split(/\r?\n/)
@@ -43,8 +41,8 @@ function tryGit(args: string[]): string | null {
   }
 }
 
-function unique(paths: string[]): string[] {
-  return [...new Set(paths)].sort()
+function unique(values: string[]): string[] {
+  return [...new Set(values)].sort()
 }
 
 function namesFromDiff(args: string[]): string[] {
@@ -60,8 +58,8 @@ function baseForCheck(): string {
   return tryGit(['rev-parse', '--verify', 'origin/main'])?.trim() ?? 'HEAD^'
 }
 
-function commitsTouching(protectedPaths: string[], base: string): string[] {
-  const hashes = tryGit(['log', '--format=%H', `${base}..HEAD`, '--', ...protectedPaths])
+function commitsTouching(protectedPaths: string[], range: string): string[] {
+  const hashes = tryGit(['log', '--format=%H', range, '--', ...protectedPaths])
   return hashes ? unique(hashes.split(/\r?\n/).filter(Boolean)) : []
 }
 
@@ -94,7 +92,7 @@ if (changed.length === 0) {
   process.exit(0)
 }
 
-const commits: ApprovalCommit[] = commitsTouching(protectedPaths, base).map((hash) => ({
+const commits: ApprovalCommit[] = commitsTouching(protectedPaths, `${base}..HEAD`).map((hash) => ({
   hash,
   value: approvalFor(hash),
 }))
