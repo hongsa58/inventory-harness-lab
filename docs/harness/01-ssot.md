@@ -24,7 +24,7 @@
 | 재고 도메인 | [`docs/01-requirements.md`](../01-requirements.md) | 재고 개념, 업무 규칙, 기능·비기능 요구사항, 범위, 완료 기준 | 지정됨 |
 | 아키텍처 | [`docs/06-architecture.md`](../06-architecture.md) | 기술 선택, 시스템 구조, 데이터 흐름, 도메인 구현 계약 | 지정됨 |
 | 개별 작업 | 해당 작업의 [GitHub Issue](https://github.com/hongsa58/inventory-harness-lab/issues) | 작업 목적, 범위, 수락 기준, 상태 및 작업별 결정 | 지정됨(작업별 Issue 필요) |
-| 검증 규칙 | 추후 생성될 검증 스크립트 | 자동 검증 규칙과 실행 기준 | **TBD — 현재 없음** |
+| 검증 규칙 | [`docs/harness/02-verification.md`](./02-verification.md) | 자동 검증 규칙과 실행 기준 | 지정됨 |
 | 구현·검증 루프 | 추후 생성될 루프 정의/자동화 | 구현 → 검증 → 결과 반영의 절차 | **TBD — 현재 없음** |
 
 ### 개별 작업 Issue 기록 규칙
@@ -191,7 +191,7 @@ Protected → Prepare → Types → Lint → Architecture Check → Test → Bui
 
 보호 경로 검사만 실행하려면 `npm run check:protected`를 사용한다.
 
-실행 명령은 `npm run verify`이며, 각 단계가 실패하면 이후 단계는 실행하지 않는다. 세부 규칙은 이 문서와 [`docs/06-architecture.md`](../06-architecture.md)의 원본을 따른다.
+실행 명령은 `npm run verify`이며, 각 단계가 실패하면 이후 단계는 실행하지 않는다. 검증 규칙과 실행 기준은 권위 있는 [`docs/harness/02-verification.md`](./02-verification.md)를 따른다. 검증 대상의 도메인·아키텍처 근거는 [`docs/01-requirements.md`](../01-requirements.md)와 [`docs/06-architecture.md`](../06-architecture.md)를 따른다.
 
 단, 현재 저장소에는 `scripts/verify/` 디렉터리 자체는 없고 검증 실행 스크립트는 `scripts/` 루트에 있다. 향후 검증 스크립트를 디렉터리로 이동할 때는 이 경로와 `package.json`의 명령을 함께 갱신한다.
 
