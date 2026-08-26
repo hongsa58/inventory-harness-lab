@@ -33,7 +33,7 @@
 - 원본에 없는 규칙을 새로 만들지 않는다. 결정이 필요하면 관련 Issue와 원본 변경 여부를 확인하고, 해결 전에는 `TBD`로 남긴다.
 - 소스 파일을 찾을 때는 먼저 해당 도메인의 `src/app`, `src/actions`, `src/lib`, `src/components`와 `tests`만 확인한다.
 - DB 변경은 `prisma/schema.prisma`, `prisma/migrations/`, `prisma/seed.ts`를 함께 확인한다.
-- 검증은 관련 테스트부터 실행하고, 범위를 넓힐 때 `npm test`, `npm run lint`, `npm run build` 순으로 필요한 것만 선택한다.
+- 검증은 관련 테스트부터 실행하고, 범위를 넓힐 때 `npm run check:protected`, `npm test`, `npm run lint`, `npm run build` 순으로 필요한 것만 선택한다.
 
 ## 구현 계약 요약
 

@@ -123,15 +123,76 @@ SSOT 변경 필요 발견
 - 실제 구현 상태와 계획이 다를 때는 아키텍처 문서를 현재 구현으로 간주하지 않는다. 구현 상태는 해당 Issue와 별도 현황 문서를 함께 확인한다.
 - DB 스키마나 소스 코드 자체를 이 문서에 복제하지 않는다.
 
-## 6. 검증 규칙
+## 6. SSOT 보호 경로 및 승인 정책
+
+<!-- HARNESS:PROTECTED-PATHS:START -->
+
+보호 경로는 SSOT와 검증 경로의 권위를 변경할 수 있는 파일이다. 보호 경로를 변경하려면 변경을 포함하는 커밋 메시지에 다음 trailer를 반드시 포함해야 한다.
+
+```text
+SSOT-Approved-By: <사람 이름 또는 계정>
+```
+
+- `<사람 이름 또는 계정>`은 비어 있지 않은 실제 사람의 이름 또는 계정이어야 한다.
+- `AI`, `Claude`, `Assistant` 등 AI를 나타내는 값은 승인으로 인정하지 않는다.
+- 커밋 작성자·커미터·브랜치·Issue·PR 설명·환경변수만으로는 승인을 인정하지 않는다.
+- 보호 경로를 변경하는 커밋마다 trailer가 있어야 한다. 보호 경로의 미커밋 변경도 승인 trailer를 연결할 수 없으므로 실패한다.
+- 로컬과 CI는 동일한 `npm run check:protected` 검사기를 사용한다. CI는 `SSOT_VERIFY_BASE`에 PR 대상 기준 커밋을 전달하고, 로컬은 기본적으로 `origin/main`(없으면 `HEAD^`)과 현재 HEAD를 비교한다.
+- 검사 결과가 승인되지 않으면 `NEEDS_HUMAN` 상태를 선언하고, 사람의 승인 전에는 영향을 받는 검증을 진행하지 않는다.
+
+검사 대상 보호 경로:
+
+```text
+- docs/harness/01-ssot.md
+- docs/01-requirements.md
+- docs/06-architecture.md
+- scripts/verify.ts
+- scripts/prepare.ts
+- scripts/check-architecture.ts
+- scripts/check-protected.ts
+- package.json
+```
+
+승인된 변경은 다음처럼 커밋한다.
+
+```bash
+git commit -m "docs: update SSOT policy" -m "SSOT-Approved-By: <human name or handle>"
+```
+
+그 뒤 로컬에서는 다음을 실행한다.
+
+```bash
+npm run check:protected
+```
+
+CI에서는 `SSOT_VERIFY_BASE`를 PR 대상 브랜치의 기준 커밋 SHA로 설정한 뒤 같은 명령을 실행한다. 기준 커밋 이후 보호 경로를 변경한 모든 커밋에 유효한 trailer가 있어야 통과한다.
+
+<!-- HARNESS:PROTECTED-PATHS:END -->
+
+## 7. 검증 규칙
 
 <!-- HARNESS:VERIFICATION-RULES:START -->
 
-**상태: 추후 생성**
+**상태: 구현됨**
 
-현재 Harness 차원의 검증 규칙 원본과 이를 실행하는 스크립트는 없다. 향후 검증 스크립트가 만들어지면 이 구간을 대체하고, 규칙의 버전·실행 명령·판정 결과 형식을 함께 기록한다. 그 전까지 기존 테스트, 계획 문서, 핸드오버의 검증 언급을 Harness 검증 규칙의 SSOT로 승격하지 않는다.
+검증 실행 영역은 `scripts/verify/`로 관리할 예정이며, 현재 실행 진입점은 [`scripts/verify.ts`](../../scripts/verify.ts)다. `npm run verify`는 보호 경로 승인 여부를 먼저 확인한 뒤 검증용 DB를 준비하고 다음 순서로 실행한다.
 
-**TBD — 검증 규칙은 추후 스크립트로 생성·대체한다.**
+```text
+Protected → Prepare → Types → Lint → Architecture Check → Test → Build
+```
+
+현재 검증 스크립트:
+
+- [`scripts/verify.ts`](../../scripts/verify.ts) — 전체 검증 순서 조정
+- [`scripts/prepare.ts`](../../scripts/prepare.ts) — 동일한 검증용 SQLite 시드 상태 준비
+- [`scripts/check-architecture.ts`](../../scripts/check-architecture.ts) — 아키텍처 경로 규칙 검사
+- [`scripts/check-protected.ts`](../../scripts/check-protected.ts) — 보호 경로 및 사람 승인 trailer 검사
+
+보호 경로 검사만 실행하려면 `npm run check:protected`를 사용한다.
+
+실행 명령은 `npm run verify`이며, 각 단계가 실패하면 이후 단계는 실행하지 않는다. 세부 규칙은 이 문서와 [`docs/06-architecture.md`](../06-architecture.md)의 원본을 따른다.
+
+단, 현재 저장소에는 `scripts/verify/` 디렉터리 자체는 없고 검증 실행 스크립트는 `scripts/` 루트에 있다. 향후 검증 스크립트를 디렉터리로 이동할 때는 이 경로와 `package.json`의 명령을 함께 갱신한다.
 
 <!-- HARNESS:VERIFICATION-RULES:END -->
 

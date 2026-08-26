@@ -23,6 +23,8 @@ npm run dev                 # db:ensure 후 Next 개발 서버, http://localhost
 npm run build               # Prisma client 생성 후 프로덕션 빌드
 npm start                   # 빌드된 서버 실행
 npm run lint                # ESLint
+npm run check:protected     # SSOT 보호 경로 승인 검사
+npm run check:architecture  # docs/06-architecture.md 경로 규칙 검사
 npm test                    # tests/**/*.test.ts 전체 실행
 npx vitest run tests/fefo.test.ts       # 단일 테스트 파일
 npx vitest run tests/fefo.test.ts -t "키워드"  # 이름으로 일부 테스트
