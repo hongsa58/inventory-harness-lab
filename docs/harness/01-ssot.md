@@ -151,6 +151,7 @@ SSOT-Approved-By: <사람 이름 또는 계정>
 - scripts/check-architecture.ts
 - scripts/check-protected.ts
 - package.json
+- .github/workflows/verify.yml
 ```
 
 승인된 변경은 다음처럼 커밋한다.
