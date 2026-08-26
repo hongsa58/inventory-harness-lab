@@ -63,6 +63,18 @@ function commitsTouching(protectedPaths: string[], range: string): string[] {
   return hashes ? unique(hashes.split(/\r?\n/).filter(Boolean)) : []
 }
 
+function policyCommit(base: string): string | null {
+  const hashes = tryGit([
+    'log',
+    '--format=%H',
+    '--reverse',
+    `${base}..HEAD`,
+    '--',
+    'scripts/check-protected.ts',
+  ])
+  return hashes?.split(/\r?\n/).find(Boolean) ?? null
+}
+
 function approvalFor(commit: string): string | null {
   const message = git(['show', '-s', '--format=%B', commit])
   for (const line of message.split(/\r?\n/)) {
@@ -92,7 +104,9 @@ if (changed.length === 0) {
   process.exit(0)
 }
 
-const commits: ApprovalCommit[] = commitsTouching(protectedPaths, `${base}..HEAD`).map((hash) => ({
+const policy = policyCommit(base)
+const approvalRange = policy ? `${policy}..HEAD` : `${base}..HEAD`
+const commits: ApprovalCommit[] = commitsTouching(protectedPaths, approvalRange).map((hash) => ({
   hash,
   value: approvalFor(hash),
 }))
