@@ -219,6 +219,7 @@ npx tsx scripts/snapshot.ts
 어느 단계라도 실패하면 `npm run verify`는 0이 아닌 종료 코드로 종료하고 이후 단계는 실행하지 않는다. 실패 보고에는 단계명과 원본 명령의 출력을 남긴다.
 
 Protected가 `NEEDS_HUMAN`을 출력하면 AI가 보호 정책을 임의로 우회하지 않는다. [`01-ssot.md`](./01-ssot.md)의 승인 절차에 따라 사람이 정확한 경로 범위를 명시적으로 지시한 뒤 다시 검증한다.
+Protected가 `NEEDS_HUMAN`을 출력하면 AI가 보호 정책을 임의로 우회하지 않는다. [`01-ssot.md`](./01-ssot.md)의 승인 절차에 따라 사람이 commit trailer를 추가하거나 판단을 제공한 뒤 다시 검증한다.
 
 ## 7. 구현·검증 루프 제한
 
