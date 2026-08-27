@@ -2,7 +2,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { applyMovement, reverseMovement } from './stock'
 import { MOVEMENT_TYPES, POPUP_STATUS, REASON_CODES } from './constants'
-import { dateOnly } from './date'
+import { dateOnly, today } from './date'
 
 /**
  * 팝업 = 여러 번 재고가 들어갔다가 마지막에 한 번 정산되는 임시 거점.
@@ -47,7 +47,14 @@ export function tallyPopup(movements: MovementLike[], popupLocationId: number): 
 
 // ───────────────────────── 조회
 
+/** 종료일 당일은 진행 중으로 보고, 다음 날부터 달력상 종료로 표시한다. */
+export function popupEnded(endDate: Date, referenceDate: Date = today()): boolean {
+  return dateOnly(referenceDate).getTime() > dateOnly(endDate).getTime()
+}
+
 export async function getPopupList() {
+  const referenceDate = today()
+
   const popups = await db.popup.findMany({
     include: { location: { include: { lots: { where: { quantity: { gt: 0 } } } } }, movements: true },
     orderBy: [{ status: 'asc' }, { startDate: 'desc' }],
@@ -57,6 +64,7 @@ export async function getPopupList() {
     id: p.id,
     name: p.name,
     status: p.status,
+    endedByDate: popupEnded(p.endDate, referenceDate),
     startDate: p.startDate,
     endDate: p.endDate,
     onHand: p.location.lots.reduce((s, l) => s + l.quantity, 0),
@@ -75,6 +83,8 @@ export async function getPopupDetail(popupId: number) {
     },
   })
   if (!popup) return null
+
+  const endedByDate = popupEnded(popup.endDate)
 
   const [popupLots, sourceLots, products] = await Promise.all([
     db.lot.findMany({
@@ -134,6 +144,7 @@ export async function getPopupDetail(popupId: number) {
 
   return {
     popup,
+    endedByDate,
     totals,
     byProduct: [...byProduct.values()].sort((a, b) => b.shipped - a.shipped || a.name.localeCompare(b.name, 'ko')),
     /** 정산 입력 대상 — 팝업에 남아 있는 로트 (유통기한을 보존해야 복귀 로트가 맞는다) */

@@ -14,8 +14,8 @@ const TONE: Record<PopupStatus, 'acc' | 'amber' | 'ok' | 'gray'> = {
 
 export default async function PopupsPage() {
   const popups = await getPopupList()
-  const running = popups.filter((p) => p.status !== POPUP_STATUS.CLOSED)
-  const closed = popups.filter((p) => p.status === POPUP_STATUS.CLOSED)
+  const running = popups.filter((p) => p.status !== POPUP_STATUS.CLOSED && !p.endedByDate)
+  const closed = popups.filter((p) => p.status === POPUP_STATUS.CLOSED || p.endedByDate)
 
   return (
     <main className="pb-16">

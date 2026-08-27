@@ -8,14 +8,65 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  authorize-protected:
+    name: Authorize protected paths
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      paths: ${{ steps.authorize.outputs.paths }}
+    steps:
+      - name: Authorize exact scope from trusted review
+        id: authorize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PATH: ${{ github.event_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_number="$(jq -r '.number' "$EVENT_PATH")"
+          head_sha="$(jq -r '.pull_request.head.sha' "$EVENT_PATH")"
+          repo="${GITHUB_REPOSITORY}"
+          protected='docs/harness/01-ssot.md
+docs/01-requirements.md
+docs/06-architecture.md
+scripts/verify.ts
+scripts/prepare.ts
+scripts/check-architecture.ts
+scripts/check-protected.ts
+package.json
+.github/workflows/verify.yml'
+          changed="$(gh api "repos/$repo/pulls/$pr_number/files" --paginate --jq '.[].filename')"
+          mapfile -t protected_changed < <(printf '%s\n' "$changed" | grep -Fx -f <(printf '%s\n' "$protected") || true)
+          if ((${#protected_changed[@]} == 0)); then
+            printf '[]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          reviews="$(gh api "repos/$repo/pulls/$pr_number/reviews" --paginate)"
+          scope="$(jq -r --arg sha "$head_sha" '
+            [ .[] | select(.commit_id == $sha and .state == "APPROVED")
+              | select(.user.type == "User")
+              | .body ] | last // ""' <<< "$reviews")"
+          paths="$(printf '%s\n' "$scope" | sed -n '/^SSOT-Authorize-Paths:$/,$p' | tail -n +2 | sed -n 's/^- //p' | jq -Rsc 'split("\n") | map(select(length > 0))')"
+          if [[ "$paths" == '[]' ]]; then
+            echo 'NEEDS_HUMAN: an authorized human review must contain an exact SSOT-Authorize-Paths scope.' >&2
+            exit 1
+          fi
+          jq -e --argjson allowed "$paths" --argjson changed "$(printf '%s\n' "${protected_changed[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
+            '$allowed | all(.[]; . as $path | ($changed | index($path)) != null)' >/dev/null
+          printf 'paths=%s\n' "$(jq -r 'join(",")' <<< "$paths")" >> "$GITHUB_OUTPUT"
+
   verify:
     name: Prepare and verify
+    needs: authorize-protected
+    if: always() && (needs.authorize-protected.result == 'success' || needs.authorize-protected.result == 'skipped')
     runs-on: ubuntu-latest
     env:
       SESSION_SECRET: ci-verification-secret
       DATABASE_URL: file:./prisma/verify.db
+      SSOT_APPROVED_PATHS: ${{ needs.authorize-protected.outputs.paths }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -39,7 +90,7 @@ jobs:
           elif [[ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
             echo "SSOT_VERIFY_BASE=${{ github.event.before }}" >> "$GITHUB_ENV"
           else
-            echo "SSOT_VERIFY_BASE=$(git rev-parse HEAD^)" >> "$GITHUB_ENV"
+            echo "SSOT_VERIFY_BASE=$(git rev-parse HEAD^ )" >> "$GITHUB_ENV"
           fi
 
       - name: Run verification
