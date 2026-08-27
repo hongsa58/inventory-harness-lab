@@ -1,18 +1,22 @@
 /**
- * SSOT 보호 경로 변경에 사람 승인이 남아 있는지 검사한다.
- * 로컬 작업 트리와 CI에서 같은 Git/trailer 규칙을 사용한다.
+ * SSOT 보호 경로 변경에 명시적인 사람의 범위 승인이 있는지 검사한다.
+ * 로컬과 CI는 동일한 검사기를 사용하며, 승인 범위는 외부의 신뢰된 입력으로만 전달한다.
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
+import {
+  canonicalPath,
+  parseAuthorizationScope,
+  validateAuthorizationScope,
+} from './protected-policy'
 
 const root = process.cwd()
-const ssotFile = path.join(root, 'docs', 'harness', '01-ssot.md')
+const ssotRelativePath = 'docs/harness/01-ssot.md'
 const markerStart = '<!-- HARNESS:PROTECTED-PATHS:START -->'
 const markerEnd = '<!-- HARNESS:PROTECTED-PATHS:END -->'
-const approvalTrailer = 'SSOT-Approved-By'
+const authorizationVariable = 'SSOT_APPROVED_PATHS'
 
-type ApprovalCommit = { hash: string; value: string | null }
+export { canonicalPath, parseAuthorizationScope, validateAuthorizationScope }
+export type { ScopeValidation } from './protected-policy'
 
 export function parseProtectedPaths(document: string): string[] {
   const start = document.indexOf(markerStart)
@@ -58,41 +62,13 @@ function baseForCheck(): string {
   return tryGit(['rev-parse', '--verify', 'origin/main'])?.trim() ?? 'HEAD^'
 }
 
-function commitsTouching(protectedPaths: string[], range: string): string[] {
-  const hashes = tryGit(['log', '--format=%H', range, '--', ...protectedPaths])
-  return hashes ? unique(hashes.split(/\r?\n/).filter(Boolean)) : []
-}
-
-function policyCommit(base: string): string | null {
-  const hashes = tryGit([
-    'log',
-    '--format=%H',
-    '--reverse',
-    `${base}..HEAD`,
-    '--',
-    'scripts/check-protected.ts',
-  ])
-  return hashes?.split(/\r?\n/).find(Boolean) ?? null
-}
-
-function approvalFor(commit: string): string | null {
-  const message = git(['show', '-s', '--format=%B', commit])
-  for (const line of message.split(/\r?\n/)) {
-    const match = line.match(/^SSOT-Approved-By:\s*(.+?)\s*$/i)
-    if (match?.[1]) return match[1]
-  }
-  return null
-}
-
-function isHumanApproval(value: string | null): value is string {
-  if (!value) return false
-  const normalized = value.trim().toLowerCase()
-  return normalized.length > 0 && !['ai', 'claude', 'assistant', 'bot'].includes(normalized)
-}
-
-const protectedPaths = parseProtectedPaths(readFileSync(ssotFile, 'utf8'))
 const base = baseForCheck()
-const pathspec = ['--', ...protectedPaths]
+const registryDocument = tryGit(['show', `${base}:${ssotRelativePath}`])
+if (!registryDocument) throw new Error(`cannot read protected-path registry from trusted base ${base}`)
+const parsedPaths = parseProtectedPaths(registryDocument).map(canonicalPath)
+if (parsedPaths.some((entry) => entry === null)) throw new Error('protected-path registry contains an invalid path')
+const registry = unique(parsedPaths as string[])
+const pathspec = ['--', ...registry]
 const committed = namesFromDiff(['diff', '--name-only', `${base}...HEAD`, ...pathspec])
 const staged = namesFromDiff(['diff', '--cached', '--name-only', ...pathspec])
 const unstaged = namesFromDiff(['diff', '--name-only', ...pathspec])
@@ -104,22 +80,18 @@ if (changed.length === 0) {
   process.exit(0)
 }
 
-const policy = policyCommit(base)
-const approvalRange = policy ? `${policy}..HEAD` : `${base}..HEAD`
-const commits: ApprovalCommit[] = commitsTouching(protectedPaths, approvalRange).map((hash) => ({
-  hash,
-  value: approvalFor(hash),
-}))
-const unapproved = commits.filter((commit) => !isHumanApproval(commit.value))
+const approved = parseAuthorizationScope(process.env[authorizationVariable])
+const scope = validateAuthorizationScope(changed, approved, registry)
 const uncommitted = unique([...staged, ...unstaged, ...untracked])
-
-if (uncommitted.length > 0 || unapproved.length > 0) {
-  console.error('NEEDS_HUMAN: protected paths changed without explicit human approval.')
+if (uncommitted.length > 0 || scope.outOfScope.length > 0 || scope.invalid.length > 0 || approved.length === 0) {
+  console.error('NEEDS_HUMAN: protected paths changed without explicit scoped human authorization.')
   console.error(`Changed protected paths: ${changed.join(', ')}`)
+  console.error(`Authorized scope: ${scope.authorized.join(', ') || '(none)'}`)
+  if (scope.outOfScope.length > 0) console.error(`Out-of-scope paths: ${scope.outOfScope.join(', ')}`)
+  if (scope.invalid.length > 0) console.error(`Invalid authorized paths: ${scope.invalid.join(', ')}`)
   if (uncommitted.length > 0) console.error(`Uncommitted protected paths: ${uncommitted.join(', ')}`)
-  if (unapproved.length > 0) console.error(`Unapproved commits: ${unapproved.map((commit) => commit.hash).join(', ')}`)
-  console.error(`Add this trailer to every protected-path commit: ${approvalTrailer}: <human name or handle>`)
+  console.error(`Set ${authorizationVariable} only from a trusted explicit human instruction.`)
   process.exitCode = 1
 } else {
-  console.log(`Protected checks passed: ${changed.length} protected path(s) approved.`)
+  console.log(`Protected checks passed: ${changed.length} protected path(s) explicitly authorized.`)
 }
